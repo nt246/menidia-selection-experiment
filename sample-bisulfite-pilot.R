@@ -31,7 +31,8 @@ bisulfite$SampleID
 ggplot(dat_0_5) +
   geom_point(aes(IncrSums, STD_Length, color = Population)) +
   geom_point(data = filter(dat_0_5, SampleID %in% bisulfite$SampleID), aes(IncrSums, STD_Length, color = Population), pch = 8, size = 8) +
-  theme_classic()
+  theme_classic() +
+  labs(x = "Polygenic score (count of slow-growing alleles)", y = "Length (mm)")
 
 ggsave(file = "M_menidia_for_bisulfite.png")
 
@@ -74,11 +75,15 @@ dat_0_5 %>%
 
 
 # inport inversion data
+# I got this mixed up. It's the northern homozygote that's rare. So SS with high counts should be NN
 
 inv_dat <- read_tsv("data/D2Gen5_MinusMixUps_Chr24_signifFDRcorrPfst_Genotype.txt")
 table(inv_dat$SNP)
 
 dim(inv_dat)
+
+
+
 
 inv_dat %>% 
   select(starts_with("D2Gen5")) %>% 
@@ -101,9 +106,17 @@ SS <- inv_dat %>%
   rename("allele_count" = `1`) %>% 
   filter(str_detect(name, "D2")) %>% 
   arrange(allele_count) %>% 
-  filter(allele_count > 9000) %>% 
+  filter(allele_count > 5000) %>% 
   .$name
 
 
-
+inv_dat %>% 
+  select(starts_with("D2Gen5")) %>% 
+  summarize(across(everything(), ~ sum(.x, na.rm = TRUE))) %>% 
+  rownames_to_column() %>%  
+  pivot_longer(-rowname) %>% 
+  pivot_wider(names_from=rowname, values_from=value)  %>% 
+  rename("allele_count" = `1`) %>% 
+  filter(str_detect(name, "D2")) %>% 
+  arrange(name) %>%
   View()
