@@ -74,7 +74,7 @@ dat_0_5 %>%
 
 
 
-# inport inversion data
+# import inversion data
 # I got this mixed up. It's the northern homozygote that's rare. So SS with high counts should be NN
 
 inv_dat <- read_tsv("data/D2Gen5_MinusMixUps_Chr24_signifFDRcorrPfst_Genotype.txt")
@@ -95,6 +95,7 @@ inv_dat %>%
   ggplot() +
   geom_histogram(aes(allele_count))
 
+ggsave(file = "Inversion_allele_count_histogram.png")
 
 
 SS <- inv_dat %>% 
@@ -110,13 +111,94 @@ SS <- inv_dat %>%
   .$name
 
 
-inv_dat %>% 
+inv_allelecounts <- inv_dat %>% 
   select(starts_with("D2Gen5")) %>% 
   summarize(across(everything(), ~ sum(.x, na.rm = TRUE))) %>% 
   rownames_to_column() %>%  
   pivot_longer(-rowname) %>% 
   pivot_wider(names_from=rowname, values_from=value)  %>% 
-  rename("allele_count" = `1`) %>% 
+  rename("inv_allele_count" = `1`) %>% 
   filter(str_detect(name, "D2")) %>% 
-  arrange(name) %>%
-  View()
+  arrange(name) 
+
+
+
+
+
+# Sample selection round 2 (March 2023) -----------------------------------
+
+# Need the five largest and five smallest fish from each of the groups D1, D2, U1, U2
+
+sample_selection <- vector("character", length = 40)
+
+pops <- c("D1Gen5", "D2Gen5", "U1Gen5", "U2Gen5")
+
+p=3 #didn't write out the for loop, just did it manually
+for (p in seq_along(pops)) 
+  
+  dat_sort <- dat_0_5 %>% 
+    filter(Population == pops[p]) %>% 
+    arrange(STD_Length) 
+  
+  sample_selection[31:35] <- dat_sort %>% 
+    head(5) %>% 
+    pull(SampleID)
+  
+  sample_selection[36:40] <- dat_sort %>% 
+    tail(5) %>% 
+    pull(SampleID)
+    
+write_lines(sample_selection, file = "data/bisulfite_inds_v2_temp.txt")
+
+
+
+# Visualize samples on the plot
+bisulfite$SampleID
+
+ggplot(dat_0_5) +
+  geom_point(aes(IncrSums, STD_Length, color = Population)) +
+  geom_point(data = filter(dat_0_5, SampleID %in% sample_selection), aes(IncrSums, STD_Length, color = Population), pch = 8, size = 8) +
+  theme_classic() +
+  labs(x = "Polygenic score (count of slow-growing alleles)", y = "Length (mm)")
+
+ggsave(file = "M_menidia_for_bisulfite_size_extremes.png")
+
+
+
+ggplot(dat_0_5) +
+  geom_point(aes(IncrSums, STD_Length, color = Population)) +
+  geom_point(data = filter(dat_0_5, SampleID %in% c(sample_selection, bisulfite$SampleID)), aes(IncrSums, STD_Length, color = Population), pch = 8, size = 8) +
+  theme_classic() +
+  labs(x = "Polygenic score (count of slow-growing alleles)", y = "Length (mm)")
+
+
+
+
+## Examine the inversion type of D2 inds
+
+write_csv(filter(dat_0_5, SampleID %in% sample_selection), file = "data/M_menidia_for_bisulfite_size_extremes.csv")
+
+dat_0_5 %>% 
+  left_join(inv_allelecounts, by = c("SampleID" = "name")) %>% 
+  filter(Population == "D2Gen5") %>% 
+  mutate(inv_type = ifelse(inv_allele_count < 5000, "SS", ifelse(inv_allele_count >9000, "NN", "NS")),
+         IncrSums = round(IncrSums, 1),
+         inv_allele_count = round(inv_allele_count, 1)) %>% 
+  arrange(STD_Length) %>% 
+  write_csv(file = "data/D2Gen5_data.csv")
+
+
+# Visualize
+manual_round2 <- read_lines("data/Adjusted_round2_selection.txt")
+length(manual_round2)
+
+bisulfite$SampleID
+
+ggplot(dat_0_5) +
+  geom_point(aes(IncrSums, STD_Length, color = Population)) +
+  geom_point(data = filter(dat_0_5, SampleID %in% c(bisulfite$SampleID, manual_round2)), aes(IncrSums, STD_Length, color = Population), pch = 8, size = 8) +
+  theme_classic() +
+  labs(x = "Polygenic score (count of slow-growing alleles)", y = "Length (mm)")
+
+ggsave(file = "Menidia_bisulfite_round2_size_extremes.png")
+
